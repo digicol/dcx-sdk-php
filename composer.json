@@ -3,7 +3,7 @@
   "license": "MIT",
   "type": "library",
   "description": "The PHP SDK for our DC-X Digital Asset Management system software",
-  "version": "1.0",
+  "version": "1.0.0",
   "require": {
     "php": ">=5.5.9"
   },
