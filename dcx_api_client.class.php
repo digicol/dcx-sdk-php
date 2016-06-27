@@ -341,8 +341,8 @@ class DCX_Api_Client
         curl_setopt($curl, CURLOPT_USERPWD, sprintf
         (
             '%s:%s',
-            urlencode($this->username),
-            urlencode($this->password)
+            $this->username,
+            $this->password
         ));
 
         if (! is_array($http_headers))
