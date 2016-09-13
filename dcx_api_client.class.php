@@ -22,6 +22,7 @@ class DCX_Api_Client
     protected $password;
     protected $custom_http_headers = array();
     protected $http_useragent = 'DC-X Api Client (http://www.digicol.de/)';
+    protected $cookie_file = false;
 
 
     public function __construct($url, $username, $password, $options = array())
@@ -49,6 +50,15 @@ class DCX_Api_Client
     }
 
 
+    public function __destruct()
+    {
+        if ($this->cookie_file && file_exists($this->cookie_file))
+        {
+            unlink($this->cookie_file);
+        }
+    }
+    
+    
     public function getContext(&$data)
     {
         $url = $this->fullUrl('_context');
@@ -289,7 +299,18 @@ class DCX_Api_Client
         ));
     }
 
+    
+    public function urlToObjectId($url, &$object_type, &$object_id)
+    {
+        $path = parse_url($url, PHP_URL_PATH);
 
+        $object_id = basename($path);
+        $object_type = basename(dirname($path));
+
+        return 1;
+    }
+
+    
     public function typeToCollectionUrl($_type)
     {
         // dcx:document => http://example.com/dcx/api/document
@@ -337,6 +358,8 @@ class DCX_Api_Client
         curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($curl, CURLOPT_MAXREDIRS, self::HTTP_MAX_REDIRECTS);
         curl_setopt($curl, CURLOPT_USERAGENT, $this->http_useragent);
+        curl_setopt($curl, CURLOPT_COOKIEFILE, $this->getCookieFile());
+        curl_setopt($curl, CURLOPT_COOKIEJAR, $this->getCookieFile());
 
         curl_setopt($curl, CURLOPT_USERPWD, sprintf
         (
@@ -514,6 +537,40 @@ class DCX_Api_Client
             {
                 $result[ $key ] = $value;
             }
+        }
+
+        return $result;
+    }
+
+
+    protected function getCookieFile()
+    {
+        if (! $this->cookie_file)
+        {
+            $this->cookie_file = tempnam($this->getTempDir(), 'dcx_api_client_');
+        }
+        
+        return $this->cookie_file;
+    }
+    
+    
+    protected function getTempDir()
+    {
+        $result = getenv('TMP');
+
+        if (empty($result))
+        {
+            $result = getenv('TEMP');
+        }
+
+        if (empty($result))
+        {
+            $result = getenv('TMPDIR');
+        }
+
+        if (empty($result))
+        {
+            $result = '/tmp';
         }
 
         return $result;
