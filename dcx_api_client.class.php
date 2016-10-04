@@ -21,7 +21,7 @@ class DCX_Api_Client
     protected $username;
     protected $password;
     protected $custom_http_headers = array();
-    protected $http_useragent = 'DC-X Api Client (http://www.digicol.de/)';
+    protected $http_useragent = 'Digicol-DCX-ApiClient/1.0 (http://www.digicol.de/)';
     protected $cookie_file = false;
 
 
@@ -205,7 +205,7 @@ class DCX_Api_Client
     public function getObjects($url, array $params, &$data)
     {
         $url = $this->fullUrl($url) . '?' . http_build_query($params);
-
+        
         $curl = $this->getCurlHandle($url);
 
         $http_code = $this->curlExec($curl, $response_body, $response_info);
