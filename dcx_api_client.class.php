@@ -110,7 +110,7 @@ class DCX_Api_Client
 
     public function getObject($url, array $params, &$data)
     {
-        $url = $this->fullUrl($url) . '?' . http_build_query($params);
+        $url = $this->appendParamsToQuery($this->fullUrl($url), $params);
 
         $curl = $this->getCurlHandle($url);
 
@@ -127,7 +127,7 @@ class DCX_Api_Client
 
     public function createObject($url, array $params, array $data, &$response_body)
     {
-        $url = $this->fullUrl($url) . '?' . http_build_query($params);
+        $url = $this->appendParamsToQuery($this->fullUrl($url), $params);
 
         $json_data = json_encode($data);
 
@@ -148,7 +148,7 @@ class DCX_Api_Client
 
     public function setObject($url, array $params, array $data, &$response_body)
     {
-        $url = $this->fullUrl($url) . '?' . http_build_query($params);
+        $url = $this->appendParamsToQuery($this->fullUrl($url), $params);
 
         $json_data = json_encode($data);
 
@@ -185,7 +185,7 @@ class DCX_Api_Client
 
     public function deleteObject($url, array $params, &$response_body)
     {
-        $url = $this->fullUrl($url) . '?' . http_build_query($params);
+        $url = $this->appendParamsToQuery($this->fullUrl($url), $params);
 
         $curl = $this->getCurlHandle($url);
 
@@ -204,7 +204,7 @@ class DCX_Api_Client
 
     public function getObjects($url, array $params, &$data)
     {
-        $url = $this->fullUrl($url) . '?' . http_build_query($params);
+        $url = $this->appendParamsToQuery($this->fullUrl($url), $params);
         
         $curl = $this->getCurlHandle($url);
 
@@ -347,6 +347,26 @@ class DCX_Api_Client
     }
 
 
+    protected function appendParamsToQuery($url, array $params)
+    {
+        if (count($params) === 0)
+        {
+            return $url;
+        }
+        
+        if (strlen(parse_url($url, PHP_URL_QUERY)) > 0)
+        {
+            $separator = '&';
+        }
+        else
+        {
+            $separator = '?';
+        }
+
+        return $url . $separator . http_build_query($params);
+    }
+    
+    
     protected function getCurlHandle($url, $http_headers = array())
     {
         $curl = curl_init($url);
