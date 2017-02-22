@@ -2,32 +2,56 @@
 
 namespace Digicol\DcxSdk;
 
+use GuzzleHttp\Client;
+use GuzzleHttp\Cookie\CookieJar;
+use GuzzleHttp\Cookie\CookieJarInterface;
+use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Psr7\Uri;
+use GuzzleHttp\Psr7\UriResolver;
+use Psr\Http\Message\ResponseInterface;
+
 
 /**
- * DC-X JSON API client
+ * DC-X JSON API HTTP Client
  *
- * First draft of a PHP client for the DC-X DAM system JSON API.
- * TODO: Namespaces, PHPDoc, Composer support and much more.
- *
+ * A PHP client for the DC-X DAM system JSON API.
  * At DC, we’re using this client for automated integration tests,
  * so while it’s far from finished, it’s already working.
+ * 
+ * @package Digicol\DcxSdk
  */
-
 class DcxApiClient
 {
-    const HTTP_TIMEOUT = 30;
-    const HTTP_CONNECT_TIMEOUT = 5;
-    const HTTP_MAX_REDIRECTS = 5;
-    const JSON_CONTENT_TYPE = 'application/json; charset=UTF-8';
+    const HTTP_TIMEOUT = 30.0;
+    const HTTP_CONNECT_TIMEOUT = 5.0;
 
+    /** @var string Base URL */
     protected $url;
+    
+    /** @var string DC-X username */
     protected $username;
+    
+    /** @var string DC-X password */
     protected $password;
-    protected $custom_http_headers = [];
-    protected $http_useragent = 'Digicol-DcxApiClient/2.0 (http://www.digicol.de/)';
-    protected $cookie_file = false;
+
+    /** @var array HTTP headers to add to each request */
+    protected $customHttpHeaders = [];
+    
+    /** @var string HTTP User-Agent string */
+    protected $httpUserAgent = 'Digicol-DcxApiClient/2.0 (http://www.digicol.de/)';
+
+    /** @var CookieJarInterface */
+    protected $cookieJar;
 
 
+    /**
+     * DcxApiClient constructor.
+     *
+     * @param string $url
+     * @param string $username
+     * @param string $password
+     * @param array $options
+     */
     public function __construct($url, $username, $password, $options = [])
     {
         if (substr($url, -1) !== '/') {
@@ -38,28 +62,41 @@ class DcxApiClient
         $this->username = $username;
         $this->password = $password;
 
-        // Custom HTTP headers
+        $this->guzzleClient = new Client
+        (
+            [
+                'base_uri' => $this->url
+            ]
+        );
+
+        $this->cookieJar = new CookieJar();
+
         if (isset($options['http_headers']) && is_array($options['http_headers'])) {
-            $this->custom_http_headers = $options['http_headers'];
+            $this->customHttpHeaders = $options['http_headers'];
         }
 
-        // Custom HTTP user agent
         if (isset($options['http_useragent'])) {
-            $this->http_useragent = $options['http_useragent'];
+            $this->httpUserAgent = $options['http_useragent'];
         }
     }
 
 
-    public function __destruct()
+    /**
+     * @param CookieJarInterface $cookieJar
+     */
+    public function setCookieJar(CookieJarInterface $cookieJar)
     {
-        if ($this->cookie_file && file_exists($this->cookie_file)) {
-            unlink($this->cookie_file);
-        }
+        $this->cookieJar = $cookieJar;
     }
 
 
+    /**
+     * @param array $data
+     * @return int HTTP status code
+     */
     public function getContext(&$data)
     {
+        $data = [];
         $url = $this->fullUrl('_context');
 
         $cache_filename = '/tmp/dcx_api_client_context_' . md5($url) . '.ser';
@@ -78,140 +115,139 @@ class DcxApiClient
             return 200;
         }
 
-        $curl = $this->getCurlHandle($url);
-
-        $http_code = $this->curlExec($curl, $response_body, $response_info);
-
-        if ($this->isJson($response_info['content_type'])) {
-            $data = json_decode($response_body, true);
+        try {
+            $response = $this->guzzleClient->get
+            (
+                $url,
+                $this->getRequestOptions(['query' => $this->mergeQuery($url, [])])
+            );
+        } catch (RequestException $exception) {
+            if ($exception->hasResponse()) {
+                $response = $exception->getResponse();
+            } else {
+                return 500;
+            }
         }
+
+        if ($this->isJsonResponse($response)) {
+            $data = json_decode($response->getBody(), true);
+        }
+
+        $statusCode = $response->getStatusCode();
 
         if (! is_array($data)) {
             $data = [];
 
-            return $http_code;
+            return $statusCode;
         }
 
         if (! isset($data['@context'])) {
             $data = [];
 
-            return $http_code;
+            return $statusCode;
         }
 
         $data = $data['@context'];
 
         file_put_contents($cache_filename, serialize($data));
 
-        return $http_code;
+        return $statusCode;
     }
 
 
-    public function getObject($url, array $params, &$data)
+    /**
+     * @param string $url
+     * @param array $query
+     * @param array $data
+     * @return int HTTP status code
+     */
+    public function getObject($url, array $query, &$data)
     {
-        $url = $this->appendParamsToQuery($this->fullUrl($url), $params);
-
-        $curl = $this->getCurlHandle($url);
-
-        $http_code = $this->curlExec($curl, $response_body, $response_info);
-
-        if ($this->isJson($response_info['content_type'])) {
-            $data = $this->decodeJson($response_body);
-        }
-
-        return $http_code;
+        return $this->request
+        (
+            'GET',
+            $this->fullUrl($url),
+            $this->getRequestOptions(['query' => $this->mergeQuery($url, $query)]),
+            $data
+        );
     }
 
 
-    public function createObject($url, array $params, array $data, &$response_body)
+    /**
+     * @param string $url
+     * @param array $query
+     * @param array $data
+     * @return int HTTP status code
+     */
+    public function getObjects($url, array $query, &$data)
     {
-        $url = $this->appendParamsToQuery($this->fullUrl($url), $params);
-
-        $json_data = json_encode($data);
-
-        $curl = $this->getCurlHandle($url, ['Content-Type' => self::JSON_CONTENT_TYPE]);
-
-        curl_setopt($curl, CURLOPT_POSTFIELDS, $json_data);
-
-        $http_code = $this->curlExec($curl, $response_body, $response_info);
-
-        if ($this->isJson($response_info['content_type'])) {
-            $response_body = $this->decodeJson($response_body);
-        }
-
-        return $http_code;
+        return $this->getObject($url, $query, $data);
     }
 
 
-    public function setObject($url, array $params, array $data, &$response_body)
+    /**
+     * @param string $url
+     * @param array $query
+     * @param array $data
+     * @param array $responseBody
+     * @return int HTTP status code
+     */
+    public function createObject($url, array $query, array $data, &$responseBody)
     {
-        $url = $this->appendParamsToQuery($this->fullUrl($url), $params);
-
-        $json_data = json_encode($data);
-
-        $curl = $this->getCurlHandle($url, ['Content-Type' => self::JSON_CONTENT_TYPE]);
-
-        curl_setopt($curl, CURLOPT_PUT, true);
-
-        // Curl insists on doing PUT uploads from a file.
-        // To avoid having to write a real file to the disk, we use a temp file handle instead.
-
-        $fp = fopen('php://temp/maxmemory:256000', 'w');
-
-        if (! $fp) {
-            return false;
-        }
-
-        fwrite($fp, $json_data);
-        fseek($fp, 0);
-
-        curl_setopt($curl, CURLOPT_INFILE, $fp);
-        curl_setopt($curl, CURLOPT_INFILESIZE, strlen($json_data));
-
-        $http_code = $this->curlExec($curl, $response_body, $response_info);
-
-        if ($this->isJson($response_info['content_type'])) {
-            $response_body = $this->decodeJson($response_body);
-        }
-
-        return $http_code;
+        return $this->request
+        (
+            'POST',
+            $this->fullUrl($url),
+            $this->getRequestOptions(['query' => $this->mergeQuery($url, $query), 'json' => $data]),
+            $responseBody
+        );
     }
 
 
-    public function deleteObject($url, array $params, &$response_body)
+    /**
+     * @param string $url
+     * @param array $query
+     * @param array $data
+     * @param array $responseBody
+     * @return int HTTP status code
+     */
+    public function setObject($url, array $query, array $data, &$responseBody)
     {
-        $url = $this->appendParamsToQuery($this->fullUrl($url), $params);
-
-        $curl = $this->getCurlHandle($url);
-
-        curl_setopt($curl, CURLOPT_CUSTOMREQUEST, 'DELETE');
-
-        $http_code = $this->curlExec($curl, $response_body, $response_info);
-
-        if ($this->isJson($response_info['content_type'])) {
-            $response_body = $this->decodeJson($response_body);
-        }
-
-        return $http_code;
+        return $this->request
+        (
+            'PUT',
+            $this->fullUrl($url),
+            $this->getRequestOptions(['query' => $this->mergeQuery($url, $query), 'json' => $data]),
+            $responseBody
+        );
     }
 
 
-    public function getObjects($url, array $params, &$data)
+    /**
+     * @param string $url
+     * @param array $query
+     * @param array $responseBody
+     * @return int HTTP status code
+     */
+    public function deleteObject($url, array $query, &$responseBody)
     {
-        $url = $this->appendParamsToQuery($this->fullUrl($url), $params);
-
-        $curl = $this->getCurlHandle($url);
-
-        $http_code = $this->curlExec($curl, $response_body, $response_info);
-
-        if ($this->isJson($response_info['content_type'])) {
-            $data = $this->decodeJson($response_body);
-        }
-
-        return $http_code;
+        return $this->request
+        (
+            'DELETE',
+            $this->fullUrl($url),
+            $this->getRequestOptions(['query' => $this->mergeQuery($url, $query)]),
+            $responseBody
+        );
     }
 
 
-    public function uploadFile($filename, array $params, &$response_body)
+    /**
+     * @param string $filename
+     * @param array $params
+     * @param array $responseBody
+     * @return int HTTP status code
+     */
+    public function uploadFile($filename, array $params, &$responseBody)
     {
         if (! file_exists($filename)) {
             return -1;
@@ -225,219 +261,247 @@ class DcxApiClient
             $params['slug'] = basename($filename);
         }
 
-        $url = $this->url . '_file_upload';
+        $fp = fopen($filename, 'r');
 
-        $curl = $this->getCurlHandle($url, [
-            'Content-Type' => $params['content_type'],
-            'Slug' => $params['slug']
-        ]);
-
-        curl_setopt($curl, CURLOPT_POST, true);
-        curl_setopt($curl, CURLOPT_BINARYTRANSFER, true);
-
-        // XXX of course, this is not suitable for large files!
-        curl_setopt($curl, CURLOPT_POSTFIELDS, file_get_contents($filename));
-
-        $http_code = $this->curlExec($curl, $response_body, $response_info);
-
-        if ($this->isJson($response_info['content_type'])) {
-            $response_body = $this->decodeJson($response_body);
-        }
-
-        return $http_code;
+        return $this->request
+        (
+            'POST',
+            $this->fullUrl('_file_upload'),
+            $this->getRequestOptions
+            (
+                [
+                    'body' => $fp,
+                    'headers' =>
+                        [
+                            'Content-Type' => $params['content_type'],
+                            'Slug' => $params['slug']
+                        ]
+                ]
+            ),
+            $responseBody
+        );
     }
 
 
+    /**
+     * @param string $uploadconfig_id
+     * @param array $params
+     * @param array $response_body
+     * @return int HTTP status code
+     */
     public function upload($uploadconfig_id, array $params, &$response_body)
     {
-        $url = $this->url . '_upload/' . urlencode($uploadconfig_id);
+        $this->flattenPostfields($params, $flattened);
 
-        $curl = $this->getCurlHandle($url, [
-            //   'Content-Type' => 'multipart/form-data'
-        ]);
-
-        $this->flattenCurlPostfields($params, $postdata);
-
-        curl_setopt($curl, CURLOPT_SAFE_UPLOAD, true);
-        curl_setopt($curl, CURLOPT_POST, true);
-        curl_setopt($curl, CURLOPT_POSTFIELDS, $postdata);
-
-        $http_code = $this->curlExec($curl, $response_body, $response_info);
-
-        if ($this->isJson($response_info['content_type'])) {
-            $response_body = $this->decodeJson($response_body);
-        }
-
-        return $http_code;
+        return $this->request
+        (
+            'POST',
+            $this->fullUrl('_upload/' . urlencode($uploadconfig_id)),
+            $this->getRequestOptions(['multipart' => $flattened]),
+            $response_body
+        );
     }
 
 
-    public function objectIdToUrl($_type, $object_id)
+    /**
+     * @param string $type Example: "dcx:document"
+     * @param string $objectId Example: "doc123"
+     * @return string Example: "http://example.com/dcx/api/document/doc123"
+     */
+    public function objectIdToUrl($type, $objectId)
     {
-        // dcx:document, doc123 => http://example.com/dcx/api/document/doc123
-
         return $this->fullUrl(sprintf
         (
             '%s/%s',
-            substr($_type, 4),
-            urlencode($object_id)
+            substr($type, 4),
+            urlencode($objectId)
         ));
     }
 
 
-    public function urlToObjectId($url, &$object_type, &$object_id)
+    /**
+     * @param string $url
+     * @param string $objectType
+     * @param string $objectId
+     * @return int 1
+     */
+    public function urlToObjectId($url, &$objectType, &$objectId)
     {
         $path = parse_url($url, PHP_URL_PATH);
 
-        $object_id = basename($path);
-        $object_type = basename(dirname($path));
+        $objectId = basename($path);
+        $objectType = basename(dirname($path));
 
         return 1;
     }
 
 
-    public function typeToCollectionUrl($_type)
+    /**
+     * @param string $type Example: "dcx:document"
+     * @return string Example: "http://example.com/dcx/api/document"
+     */
+    public function typeToCollectionUrl($type)
     {
-        // dcx:document => http://example.com/dcx/api/document
-
-        return $this->fullUrl(substr($_type, 4));
+        return $this->fullUrl(substr($type, 4));
     }
 
 
-    public function fullUrl($incomplete_url)
+    /**
+     * @param string $incompleteUrl Example: "document/doc123"
+     * @return string Example: "http://example.com/dcx/api/document/doc123"
+     */
+    public function fullUrl($incompleteUrl)
     {
-        // document/doc123 => http://example.com/dcx/api/document/doc123
-        // /dcx/api/document/doc123 => http://example.com/dcx/api/document/doc123
+        return (string)UriResolver::resolve(new Uri($this->url), new Uri($incompleteUrl));
+    }
 
-        if (strpos($incomplete_url, '://') !== false) {
-            return $incomplete_url;
+
+    /**
+     * @param string $method HTTP method
+     * @param string $url
+     * @param array $options
+     * @param array $responseData
+     * @return int HTTP status code
+     */
+    protected function request($method, $url, array $options, &$responseData)
+    {
+        $responseData = [];
+
+        try {
+            $response = $this->guzzleClient->request
+            (
+                $method,
+                $url,
+                $options
+            );
+        } catch (RequestException $exception) {
+            if ($exception->hasResponse()) {
+                $response = $exception->getResponse();
+            } else {
+                return 500;
+            }
         }
 
-        if ($incomplete_url[0] !== '/') {
-            return $this->url . $incomplete_url;
+        if ($this->isJsonResponse($response)) {
+            $responseData = $this->decodeJson($response->getBody());
         }
 
-        $url = parse_url($this->url);
+        return $response->getStatusCode();
+    }
 
-        return sprintf
+
+    /**
+     * @param array $addOptions
+     * @return array
+     */
+    protected function getRequestOptions(array $addOptions)
+    {
+        $defaultOptions =
+            [
+                'timeout' => self::HTTP_TIMEOUT,
+                'connect_timeout' => self::HTTP_CONNECT_TIMEOUT,
+                'auth' => [$this->username, $this->password],
+                'cookies' => $this->cookieJar,
+                'headers' =>
+                    [
+                        'User-Agent' => $this->httpUserAgent,
+                        'Accept' => 'application/json'
+                    ]
+            ];
+
+        $defaultOptions['headers'] = array_merge($defaultOptions['headers'], $this->customHttpHeaders);
+        
+        return array_merge_recursive
         (
-            '%s://%s%s%s',
-            $url['scheme'],
-            $url['host'],
-            (isset($url['port']) ? ':' . $url['port'] : ''),
-            $incomplete_url
+            $defaultOptions,
+            $addOptions
         );
     }
 
 
-    protected function appendParamsToQuery($url, array $params)
+    /**
+     * @param string $url
+     * @param array $query
+     * @return array
+     */
+    protected function mergeQuery($url, array $query)
     {
-        if (count($params) === 0) {
-            return $url;
-        }
+        // Combine URL query parameters and the $query array
+        // XXX Hack? We don't try to merge recursively, simply
+        // overwrite identically-named top-level query parameters
 
-        if (strlen(parse_url($url, PHP_URL_QUERY)) > 0) {
-            $separator = '&';
-        } else {
-            $separator = '?';
-        }
+        $urlQueryString = (new Uri($url))->getQuery();
 
-        return $url . $separator . http_build_query($params);
+        parse_str($urlQueryString, $urlQuery);
+
+        return array_merge($urlQuery, $query);
     }
 
 
-    protected function getCurlHandle($url, $http_headers = [])
+    /**
+     * @param array $values
+     * @param array $result
+     * @param string $fieldNamePrefix
+     */
+    protected function flattenPostfields(array $values, &$result, $fieldNamePrefix = '')
     {
-        $curl = curl_init($url);
-
-        curl_setopt($curl, CURLOPT_HEADER, true);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, self::HTTP_CONNECT_TIMEOUT);
-        curl_setopt($curl, CURLOPT_TIMEOUT, self::HTTP_TIMEOUT);
-        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($curl, CURLOPT_MAXREDIRS, self::HTTP_MAX_REDIRECTS);
-        curl_setopt($curl, CURLOPT_USERAGENT, $this->http_useragent);
-        curl_setopt($curl, CURLOPT_COOKIEFILE, $this->getCookieFile());
-        curl_setopt($curl, CURLOPT_COOKIEJAR, $this->getCookieFile());
-
-        curl_setopt($curl, CURLOPT_USERPWD, sprintf
-        (
-            '%s:%s',
-            $this->username,
-            $this->password
-        ));
-
-        if (! is_array($http_headers)) {
-            $http_headers = [];
-        }
-
-        $http_headers = array_merge($this->custom_http_headers, $http_headers);
-
-        if (! isset($http_headers['Accept'])) {
-            $http_headers['Accept'] = self::JSON_CONTENT_TYPE;
-        }
-
-        $set_headers = [];
-
-        foreach ($http_headers as $key => $value) {
-            $set_headers[] = sprintf('%s: %s', $key, $value);
-        }
-
-        curl_setopt($curl, CURLOPT_HTTPHEADER, $set_headers);
-
-        return $curl;
-    }
-
-
-    protected function curlExec($curl, &$response_body, &$response_info)
-    {
-        $response = curl_exec($curl);
-
-        $response_info = curl_getinfo($curl);
-
-        curl_close($curl);
-
-        $response_info['_header_str'] = mb_substr($response, 0, $response_info['header_size']);
-        $response_body = mb_substr($response, $response_info['header_size']);
-
-        return $response_info['http_code'];
-    }
-
-
-    protected function flattenCurlPostfields($values, &$result, $fieldname_prefix = '')
-    {
-        // Curl is too dumb to understand nested arrays. Flatten them, and
-        // use CurlFile for the file section.
-        // see http://stackoverflow.com/questions/3772096/posting-multidimensional-array-with-php-and-curl
+        // Curl / Guzzle is too dumb to understand nested arrays on multipart/form-data.
+        // Flatten them (assuming CurlFile is used for files).
+        // See http://stackoverflow.com/questions/3772096/posting-multidimensional-array-with-php-and-curl
 
         if (! is_array($result)) {
             $result = [];
         }
 
         foreach ($values as $key => $value) {
-            if ($fieldname_prefix === '') {
-                $fieldname = $key;
+            if ($fieldNamePrefix === '') {
+                $fieldName = $key;
             } else {
-                $fieldname = sprintf('%s[%s]', $fieldname_prefix, $key);
+                $fieldName = sprintf('%s[%s]', $fieldNamePrefix, $key);
             }
 
             if (is_array($value)) {
-                $this->flattenCurlPostfields($value, $result, $fieldname);
+                $this->flattenPostfields($value, $result, $fieldName);
+            } elseif (is_object($value) && ($value instanceof \CURLFile)) {
+                $result[] =
+                    [
+                        'name' => $fieldName,
+                        'contents' => fopen($value->getFilename(), 'r'),
+                        'filename' => $value->getFilename()
+                    ];
             } else {
-                $result[$fieldname] = $value;
+                $result[] =
+                    [
+                        'name' => $fieldName,
+                        'contents' => $value
+                    ];
             }
         }
     }
 
 
-    protected function isJson($content_type)
+    /**
+     * @param ResponseInterface $response
+     * @return bool
+     */
+    protected function isJsonResponse(ResponseInterface $response)
+    {
+        return $this->isJson($response->getHeader('Content-Type')[0]);
+    }
+
+
+    /**
+     * @param string $contentType HTTP Content-Type header
+     * @return bool
+     */
+    protected function isJson($contentType)
     {
         // Accept "application/json", "application/problem+json; charset=UTF-8"
         // XXX a regular expression might be better!
 
-        list($content_type,) = array_map('trim', explode(';', $content_type));
+        list($contentType,) = array_map('trim', explode(';', $contentType));
 
-        $parts = explode('/', $content_type);
+        $parts = explode('/', $contentType);
 
         if ($parts[0] !== 'application') {
             return false;
@@ -447,9 +511,13 @@ class DcxApiClient
     }
 
 
-    protected function decodeJson($json_str)
+    /**
+     * @param string $jsonStr
+     * @return mixed
+     */
+    protected function decodeJson($jsonStr)
     {
-        $result = json_decode($json_str, true);
+        $result = json_decode($jsonStr, true);
 
         if (! is_array($result)) {
             return $result;
@@ -461,6 +529,10 @@ class DcxApiClient
     }
 
 
+    /**
+     * @param array $arr
+     * @param array $prefixes
+     */
     protected function resolveCompactUrls(&$arr, array $prefixes)
     {
         foreach ($arr as $key => $value) {
@@ -478,6 +550,11 @@ class DcxApiClient
     }
 
 
+    /**
+     * @param string $url
+     * @param array $prefixes
+     * @return string
+     */
     protected function resolveCompactUrl($url, array $prefixes)
     {
         $parts = explode(':', $url, 2);
@@ -500,6 +577,9 @@ class DcxApiClient
     }
 
 
+    /**
+     * @return array
+     */
     protected function getCompactUrlPrefixes()
     {
         $result = [];
@@ -514,36 +594,6 @@ class DcxApiClient
             if (is_string($value)) {
                 $result[$key] = $value;
             }
-        }
-
-        return $result;
-    }
-
-
-    protected function getCookieFile()
-    {
-        if (! $this->cookie_file) {
-            $this->cookie_file = tempnam($this->getTempDir(), 'dcx_api_client_');
-        }
-
-        return $this->cookie_file;
-    }
-
-
-    protected function getTempDir()
-    {
-        $result = getenv('TMP');
-
-        if (empty($result)) {
-            $result = getenv('TEMP');
-        }
-
-        if (empty($result)) {
-            $result = getenv('TMPDIR');
-        }
-
-        if (empty($result)) {
-            $result = '/tmp';
         }
 
         return $result;
