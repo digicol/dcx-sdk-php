@@ -1,18 +1,21 @@
 {
-  "name": "digicol/dcx-sdk-php",
-  "license": "MIT",
-  "type": "library",
-  "description": "The PHP SDK for our DC-X Digital Asset Management system software",
-  "version": "1.0.0",
-  "require": {
-    "php": ">=5.5.9"
-  },
-  "autoload": {
-    "files": ["dcx_api_client.class.php"]
-  },
-  "extra": {
-    "branch-alias": {
-      "dev-master": "1.0-dev"
+    "name": "digicol/dcx-sdk-php",
+    "license": "MIT",
+    "type": "library",
+    "description": "The PHP SDK for our DC-X Digital Asset Management system software",
+    "version": "2.0.0alpha1",
+    "require": {
+        "php": ">=5.5.9",
+        "guzzlehttp/guzzle": "~6.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Digicol\\DcxSdk\\": "src/"
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "2.0-dev"
+        }
     }
-  }
 }

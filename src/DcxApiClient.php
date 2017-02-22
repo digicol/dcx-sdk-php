@@ -1,5 +1,8 @@
 <?php
 
+namespace Digicol\DcxSdk;
+
+
 /**
  * DC-X JSON API client
  *
@@ -10,7 +13,7 @@
  * so while it’s far from finished, it’s already working.
  */
 
-class DCX_Api_Client
+class DcxApiClient
 {
     const HTTP_TIMEOUT = 30;
     const HTTP_CONNECT_TIMEOUT = 5;
@@ -20,15 +23,14 @@ class DCX_Api_Client
     protected $url;
     protected $username;
     protected $password;
-    protected $custom_http_headers = array();
-    protected $http_useragent = 'Digicol-DCX-ApiClient/1.0 (http://www.digicol.de/)';
+    protected $custom_http_headers = [];
+    protected $http_useragent = 'Digicol-DcxApiClient/2.0 (http://www.digicol.de/)';
     protected $cookie_file = false;
 
 
-    public function __construct($url, $username, $password, $options = array())
+    public function __construct($url, $username, $password, $options = [])
     {
-        if (substr($url, -1) !== '/')
-        {
+        if (substr($url, -1) !== '/') {
             $url .= '/';
         }
 
@@ -37,28 +39,25 @@ class DCX_Api_Client
         $this->password = $password;
 
         // Custom HTTP headers
-        if (isset($options[ 'http_headers' ]) && is_array($options[ 'http_headers' ]))
-        {
-            $this->custom_http_headers = $options[ 'http_headers' ];
+        if (isset($options['http_headers']) && is_array($options['http_headers'])) {
+            $this->custom_http_headers = $options['http_headers'];
         }
 
         // Custom HTTP user agent
-        if (isset($options[ 'http_useragent' ]))
-        {
-            $this->http_useragent = $options[ 'http_useragent' ];
+        if (isset($options['http_useragent'])) {
+            $this->http_useragent = $options['http_useragent'];
         }
     }
 
 
     public function __destruct()
     {
-        if ($this->cookie_file && file_exists($this->cookie_file))
-        {
+        if ($this->cookie_file && file_exists($this->cookie_file)) {
             unlink($this->cookie_file);
         }
     }
-    
-    
+
+
     public function getContext(&$data)
     {
         $url = $this->fullUrl('_context');
@@ -73,9 +72,9 @@ class DCX_Api_Client
             file_exists($cache_filename)
             && (filesize($cache_filename) > 0)
             && ((time() - filemtime($cache_filename)) < $cache_maxage)
-        )
-        {
+        ) {
             $data = unserialize(file_get_contents($cache_filename));
+
             return 200;
         }
 
@@ -83,24 +82,23 @@ class DCX_Api_Client
 
         $http_code = $this->curlExec($curl, $response_body, $response_info);
 
-        if ($this->isJson($response_info[ 'content_type' ]))
-        {
+        if ($this->isJson($response_info['content_type'])) {
             $data = json_decode($response_body, true);
         }
 
-        if (! is_array($data))
-        {
-            $data = array();
+        if (! is_array($data)) {
+            $data = [];
+
             return $http_code;
         }
 
-        if (! isset($data[ '@context' ]))
-        {
-            $data = array();
+        if (! isset($data['@context'])) {
+            $data = [];
+
             return $http_code;
         }
 
-        $data = $data[ '@context' ];
+        $data = $data['@context'];
 
         file_put_contents($cache_filename, serialize($data));
 
@@ -116,8 +114,7 @@ class DCX_Api_Client
 
         $http_code = $this->curlExec($curl, $response_body, $response_info);
 
-        if ($this->isJson($response_info[ 'content_type' ]))
-        {
+        if ($this->isJson($response_info['content_type'])) {
             $data = $this->decodeJson($response_body);
         }
 
@@ -131,14 +128,13 @@ class DCX_Api_Client
 
         $json_data = json_encode($data);
 
-        $curl = $this->getCurlHandle($url, array( 'Content-Type' => self::JSON_CONTENT_TYPE ));
+        $curl = $this->getCurlHandle($url, ['Content-Type' => self::JSON_CONTENT_TYPE]);
 
         curl_setopt($curl, CURLOPT_POSTFIELDS, $json_data);
 
         $http_code = $this->curlExec($curl, $response_body, $response_info);
 
-        if ($this->isJson($response_info[ 'content_type' ]))
-        {
+        if ($this->isJson($response_info['content_type'])) {
             $response_body = $this->decodeJson($response_body);
         }
 
@@ -152,7 +148,7 @@ class DCX_Api_Client
 
         $json_data = json_encode($data);
 
-        $curl = $this->getCurlHandle($url, array( 'Content-Type' => self::JSON_CONTENT_TYPE ));
+        $curl = $this->getCurlHandle($url, ['Content-Type' => self::JSON_CONTENT_TYPE]);
 
         curl_setopt($curl, CURLOPT_PUT, true);
 
@@ -161,8 +157,7 @@ class DCX_Api_Client
 
         $fp = fopen('php://temp/maxmemory:256000', 'w');
 
-        if (! $fp)
-        {
+        if (! $fp) {
             return false;
         }
 
@@ -174,8 +169,7 @@ class DCX_Api_Client
 
         $http_code = $this->curlExec($curl, $response_body, $response_info);
 
-        if ($this->isJson($response_info[ 'content_type' ]))
-        {
+        if ($this->isJson($response_info['content_type'])) {
             $response_body = $this->decodeJson($response_body);
         }
 
@@ -193,8 +187,7 @@ class DCX_Api_Client
 
         $http_code = $this->curlExec($curl, $response_body, $response_info);
 
-        if ($this->isJson($response_info[ 'content_type' ]))
-        {
+        if ($this->isJson($response_info['content_type'])) {
             $response_body = $this->decodeJson($response_body);
         }
 
@@ -205,13 +198,12 @@ class DCX_Api_Client
     public function getObjects($url, array $params, &$data)
     {
         $url = $this->appendParamsToQuery($this->fullUrl($url), $params);
-        
+
         $curl = $this->getCurlHandle($url);
 
         $http_code = $this->curlExec($curl, $response_body, $response_info);
 
-        if ($this->isJson($response_info[ 'content_type' ]))
-        {
+        if ($this->isJson($response_info['content_type'])) {
             $data = $this->decodeJson($response_body);
         }
 
@@ -221,28 +213,24 @@ class DCX_Api_Client
 
     public function uploadFile($filename, array $params, &$response_body)
     {
-        if (! file_exists($filename))
-        {
+        if (! file_exists($filename)) {
             return -1;
         }
 
-        if (empty($params[ 'content_type' ]))
-        {
-            $params[ 'content_type' ] = 'application/octet-stream';
+        if (empty($params['content_type'])) {
+            $params['content_type'] = 'application/octet-stream';
         }
 
-        if (empty($params[ 'slug' ]))
-        {
-            $params[ 'slug' ] = basename($filename);
+        if (empty($params['slug'])) {
+            $params['slug'] = basename($filename);
         }
 
         $url = $this->url . '_file_upload';
 
-        $curl = $this->getCurlHandle($url, array
-        (
-            'Content-Type' => $params[ 'content_type' ],
-            'Slug' => $params[ 'slug' ]
-        ));
+        $curl = $this->getCurlHandle($url, [
+            'Content-Type' => $params['content_type'],
+            'Slug' => $params['slug']
+        ]);
 
         curl_setopt($curl, CURLOPT_POST, true);
         curl_setopt($curl, CURLOPT_BINARYTRANSFER, true);
@@ -252,8 +240,7 @@ class DCX_Api_Client
 
         $http_code = $this->curlExec($curl, $response_body, $response_info);
 
-        if ($this->isJson($response_info[ 'content_type' ]))
-        {
+        if ($this->isJson($response_info['content_type'])) {
             $response_body = $this->decodeJson($response_body);
         }
 
@@ -265,10 +252,9 @@ class DCX_Api_Client
     {
         $url = $this->url . '_upload/' . urlencode($uploadconfig_id);
 
-        $curl = $this->getCurlHandle($url, array
-        (
-         //   'Content-Type' => 'multipart/form-data'
-        ));
+        $curl = $this->getCurlHandle($url, [
+            //   'Content-Type' => 'multipart/form-data'
+        ]);
 
         $this->flattenCurlPostfields($params, $postdata);
 
@@ -278,8 +264,7 @@ class DCX_Api_Client
 
         $http_code = $this->curlExec($curl, $response_body, $response_info);
 
-        if ($this->isJson($response_info[ 'content_type' ]))
-        {
+        if ($this->isJson($response_info['content_type'])) {
             $response_body = $this->decodeJson($response_body);
         }
 
@@ -299,7 +284,7 @@ class DCX_Api_Client
         ));
     }
 
-    
+
     public function urlToObjectId($url, &$object_type, &$object_id)
     {
         $path = parse_url($url, PHP_URL_PATH);
@@ -310,7 +295,7 @@ class DCX_Api_Client
         return 1;
     }
 
-    
+
     public function typeToCollectionUrl($_type)
     {
         // dcx:document => http://example.com/dcx/api/document
@@ -324,13 +309,11 @@ class DCX_Api_Client
         // document/doc123 => http://example.com/dcx/api/document/doc123
         // /dcx/api/document/doc123 => http://example.com/dcx/api/document/doc123
 
-        if (strpos($incomplete_url, '://') !== false)
-        {
+        if (strpos($incomplete_url, '://') !== false) {
             return $incomplete_url;
         }
 
-        if ($incomplete_url[ 0 ] !== '/')
-        {
+        if ($incomplete_url[0] !== '/') {
             return $this->url . $incomplete_url;
         }
 
@@ -339,9 +322,9 @@ class DCX_Api_Client
         return sprintf
         (
             '%s://%s%s%s',
-            $url[ 'scheme' ],
-            $url[ 'host' ],
-            (isset($url[ 'port' ]) ? ':' . $url[ 'port' ] : ''),
+            $url['scheme'],
+            $url['host'],
+            (isset($url['port']) ? ':' . $url['port'] : ''),
             $incomplete_url
         );
     }
@@ -349,25 +332,21 @@ class DCX_Api_Client
 
     protected function appendParamsToQuery($url, array $params)
     {
-        if (count($params) === 0)
-        {
+        if (count($params) === 0) {
             return $url;
         }
-        
-        if (strlen(parse_url($url, PHP_URL_QUERY)) > 0)
-        {
+
+        if (strlen(parse_url($url, PHP_URL_QUERY)) > 0) {
             $separator = '&';
-        }
-        else
-        {
+        } else {
             $separator = '?';
         }
 
         return $url . $separator . http_build_query($params);
     }
-    
-    
-    protected function getCurlHandle($url, $http_headers = array())
+
+
+    protected function getCurlHandle($url, $http_headers = [])
     {
         $curl = curl_init($url);
 
@@ -388,23 +367,20 @@ class DCX_Api_Client
             $this->password
         ));
 
-        if (! is_array($http_headers))
-        {
-            $http_headers = array();
+        if (! is_array($http_headers)) {
+            $http_headers = [];
         }
 
         $http_headers = array_merge($this->custom_http_headers, $http_headers);
 
-        if (! isset($http_headers[ 'Accept' ]))
-        {
-            $http_headers[ 'Accept' ] = self::JSON_CONTENT_TYPE;
+        if (! isset($http_headers['Accept'])) {
+            $http_headers['Accept'] = self::JSON_CONTENT_TYPE;
         }
 
-        $set_headers = array();
+        $set_headers = [];
 
-        foreach ($http_headers as $key => $value)
-        {
-            $set_headers[ ] = sprintf('%s: %s', $key, $value);
+        foreach ($http_headers as $key => $value) {
+            $set_headers[] = sprintf('%s: %s', $key, $value);
         }
 
         curl_setopt($curl, CURLOPT_HTTPHEADER, $set_headers);
@@ -421,10 +397,10 @@ class DCX_Api_Client
 
         curl_close($curl);
 
-        $response_info[ '_header_str' ] = mb_substr($response, 0, $response_info[ 'header_size' ]);
-        $response_body = mb_substr($response, $response_info[ 'header_size' ]);
+        $response_info['_header_str'] = mb_substr($response, 0, $response_info['header_size']);
+        $response_body = mb_substr($response, $response_info['header_size']);
 
-        return $response_info[ 'http_code' ];
+        return $response_info['http_code'];
     }
 
 
@@ -434,29 +410,21 @@ class DCX_Api_Client
         // use CurlFile for the file section.
         // see http://stackoverflow.com/questions/3772096/posting-multidimensional-array-with-php-and-curl
 
-        if (! is_array($result))
-        {
-            $result = array();
+        if (! is_array($result)) {
+            $result = [];
         }
 
-        foreach ($values as $key => $value)
-        {
-            if ($fieldname_prefix === '')
-            {
+        foreach ($values as $key => $value) {
+            if ($fieldname_prefix === '') {
                 $fieldname = $key;
-            }
-            else
-            {
+            } else {
                 $fieldname = sprintf('%s[%s]', $fieldname_prefix, $key);
             }
 
-            if (is_array($value))
-            {
+            if (is_array($value)) {
                 $this->flattenCurlPostfields($value, $result, $fieldname);
-            }
-            else
-            {
-                $result[ $fieldname ] = $value;
+            } else {
+                $result[$fieldname] = $value;
             }
         }
     }
@@ -467,16 +435,15 @@ class DCX_Api_Client
         // Accept "application/json", "application/problem+json; charset=UTF-8"
         // XXX a regular expression might be better!
 
-        list($content_type, ) = array_map('trim', explode(';', $content_type));
+        list($content_type,) = array_map('trim', explode(';', $content_type));
 
         $parts = explode('/', $content_type);
 
-        if ($parts[ 0 ] !== 'application')
-        {
+        if ($parts[0] !== 'application') {
             return false;
         }
 
-        return (($parts[ 1 ] === 'json') || (substr($parts[ 1 ], -5) === '+json'));
+        return (($parts[1] === 'json') || (substr($parts[1], -5) === '+json'));
     }
 
 
@@ -484,8 +451,7 @@ class DCX_Api_Client
     {
         $result = json_decode($json_str, true);
 
-        if (! is_array($result))
-        {
+        if (! is_array($result)) {
             return $result;
         }
 
@@ -497,17 +463,14 @@ class DCX_Api_Client
 
     protected function resolveCompactUrls(&$arr, array $prefixes)
     {
-        foreach ($arr as $key => $value)
-        {
-            if (is_array($value))
-            {
-                $this->resolveCompactUrls($arr[ $key ], $prefixes);
+        foreach ($arr as $key => $value) {
+            if (is_array($value)) {
+                $this->resolveCompactUrls($arr[$key], $prefixes);
                 continue;
             }
 
-            if ($key === '_id')
-            {
-                $arr[ '_id_url' ] = $this->resolveCompactUrl($value, $prefixes);
+            if ($key === '_id') {
+                $arr['_id_url'] = $this->resolveCompactUrl($value, $prefixes);
             }
 
             ksort($arr);
@@ -519,43 +482,37 @@ class DCX_Api_Client
     {
         $parts = explode(':', $url, 2);
 
-        if (count($parts) === 1)
-        {
+        if (count($parts) === 1) {
             return $url;
         }
 
         list($prefix, $suffix) = $parts;
 
-        if (substr($suffix, 0, 2) === '//')
-        {
+        if (substr($suffix, 0, 2) === '//') {
             return $url;
         }
 
-        if (! isset($prefixes[ $prefix ]))
-        {
+        if (! isset($prefixes[$prefix])) {
             return $url;
         }
 
-        return $prefixes[ $prefix ] . $suffix;
+        return $prefixes[$prefix] . $suffix;
     }
 
 
     protected function getCompactUrlPrefixes()
     {
-        $result = array();
+        $result = [];
 
         $this->getContext($context);
 
-        if (! is_array($context))
-        {
+        if (! is_array($context)) {
             return $result;
         }
 
-        foreach ($context as $key => $value)
-        {
-            if (is_string($value))
-            {
-                $result[ $key ] = $value;
+        foreach ($context as $key => $value) {
+            if (is_string($value)) {
+                $result[$key] = $value;
             }
         }
 
@@ -565,31 +522,27 @@ class DCX_Api_Client
 
     protected function getCookieFile()
     {
-        if (! $this->cookie_file)
-        {
+        if (! $this->cookie_file) {
             $this->cookie_file = tempnam($this->getTempDir(), 'dcx_api_client_');
         }
-        
+
         return $this->cookie_file;
     }
-    
-    
+
+
     protected function getTempDir()
     {
         $result = getenv('TMP');
 
-        if (empty($result))
-        {
+        if (empty($result)) {
             $result = getenv('TEMP');
         }
 
-        if (empty($result))
-        {
+        if (empty($result)) {
             $result = getenv('TMPDIR');
         }
 
-        if (empty($result))
-        {
+        if (empty($result)) {
             $result = '/tmp';
         }
 
