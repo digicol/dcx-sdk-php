@@ -370,6 +370,10 @@ class DcxApiClient
      */
     public function fullUrl($incompleteUrl)
     {
+        if (strpos($incompleteUrl, 'dcxapi:') === 0) {
+            $incompleteUrl = substr($incompleteUrl, strlen('dcxapi:'));
+        }
+        
         return (string)UriResolver::resolve(new Uri($this->url), new Uri($incompleteUrl));
     }
 
