@@ -1,6 +1,6 @@
 # Official PHP SDK for the Digital Collections DC-X Digital Asset Management system
 
-The `DcxApiClient` class helps your custom PHP code connect to your [DC-X](http://www.digicol.de/en/products/dc-x/) system
+The `DcxApiClient` class helps your custom PHP code connect to your [DC-X](http://www.digicol.com/products/dc-x/) system
 via the HTTP-based [DC-X JSON API](http://wiki.digicol.de/x/1oTc).
 
 ## Versions
