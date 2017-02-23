@@ -28,12 +28,9 @@ class DcxApiClient
     /** @var string Base URL */
     protected $url;
     
-    /** @var string DC-X username */
-    protected $username;
+    /** @var array Array of "username" and "password" */
+    protected $credentials = [];
     
-    /** @var string DC-X password */
-    protected $password;
-
     /** @var array HTTP headers to add to each request */
     protected $customHttpHeaders = [];
     
@@ -48,19 +45,18 @@ class DcxApiClient
      * DcxApiClient constructor.
      *
      * @param string $url
-     * @param string $username
+     * @param array $credentials Array of "username" and "password"
      * @param string $password
      * @param array $options
      */
-    public function __construct($url, $username, $password, $options = [])
+    public function __construct($url, array $credentials, $options = [])
     {
         if (substr($url, -1) !== '/') {
             $url .= '/';
         }
 
         $this->url = $url;
-        $this->username = $username;
-        $this->password = $password;
+        $this->credentials = $credentials;
 
         $this->guzzleClient = new Client
         (
@@ -161,7 +157,7 @@ class DcxApiClient
      * @param array $data
      * @return int HTTP status code
      */
-    public function getObject($url, array $query, &$data)
+    public function get($url, array $query, &$data)
     {
         return $this->request
         (
@@ -174,6 +170,28 @@ class DcxApiClient
 
 
     /**
+     * Get a single object
+     * 
+     * Use get() instead.
+     * @deprecated 2.0.0
+     * 
+     * @param string $url
+     * @param array $query
+     * @param array $data
+     * @return int HTTP status code
+     */
+    public function getObject($url, array $query, &$data)
+    {
+        return $this->get($url, $query, $data);
+    }
+
+
+    /**
+     * Get a list of objects
+     * 
+     * Use get() instead.
+     * @deprecated 2.0.0
+     *
      * @param string $url
      * @param array $query
      * @param array $data
@@ -181,7 +199,7 @@ class DcxApiClient
      */
     public function getObjects($url, array $query, &$data)
     {
-        return $this->getObject($url, $query, $data);
+        return $this->get($url, $query, $data);
     }
 
 
@@ -400,7 +418,11 @@ class DcxApiClient
             [
                 'timeout' => self::HTTP_TIMEOUT,
                 'connect_timeout' => self::HTTP_CONNECT_TIMEOUT,
-                'auth' => [$this->username, $this->password],
+                'auth' => 
+                    [
+                        $this->credentials['username'], 
+                        $this->credentials['password']
+                    ],
                 'cookies' => $this->cookieJar,
                 'headers' =>
                     [
