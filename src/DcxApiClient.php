@@ -17,7 +17,7 @@ use Psr\Http\Message\ResponseInterface;
  * A PHP client for the DC-X DAM system JSON API.
  * At DC, we’re using this client for automated integration tests,
  * so while it’s far from finished, it’s already working.
- * 
+ *
  * @package Digicol\DcxSdk
  */
 class DcxApiClient
@@ -27,13 +27,13 @@ class DcxApiClient
 
     /** @var string Base URL */
     protected $url;
-    
-    /** @var array Array of "username" and "password" */
+
+    /** @var array Array of "username" and "password", or an empty array */
     protected $credentials = [];
-    
+
     /** @var array HTTP headers to add to each request */
     protected $customHttpHeaders = [];
-    
+
     /** @var string HTTP User-Agent string */
     protected $httpUserAgent = 'Digicol-DcxApiClient/2.0 (http://www.digicol.de/)';
 
@@ -45,7 +45,7 @@ class DcxApiClient
      * DcxApiClient constructor.
      *
      * @param string $url
-     * @param array $credentials Array of "username" and "password"
+     * @param array $credentials Array of "username" and "password", or an empty array
      * @param string $password
      * @param array $options
      */
@@ -77,6 +77,24 @@ class DcxApiClient
     }
 
 
+    /**
+     * @param array $credentials
+     */
+    public function setCredentials(array $credentials)
+    {
+        $this->credentials = $credentials;
+    }
+
+
+    /**
+     * @return CookieJarInterface
+     */
+    public function getCookieJar()
+    {
+        return $this->cookieJar;
+    }
+    
+    
     /**
      * @param CookieJarInterface $cookieJar
      */
@@ -171,10 +189,11 @@ class DcxApiClient
 
     /**
      * Get a single object
-     * 
+     *
      * Use get() instead.
+     *
      * @deprecated 2.0.0
-     * 
+     *
      * @param string $url
      * @param array $query
      * @param array $data
@@ -188,8 +207,9 @@ class DcxApiClient
 
     /**
      * Get a list of objects
-     * 
+     *
      * Use get() instead.
+     *
      * @deprecated 2.0.0
      *
      * @param string $url
@@ -373,7 +393,7 @@ class DcxApiClient
         if (strpos($incompleteUrl, 'dcxapi:') === 0) {
             $incompleteUrl = substr($incompleteUrl, strlen('dcxapi:'));
         }
-        
+
         return (string)UriResolver::resolve(new Uri($this->url), new Uri($incompleteUrl));
     }
 
@@ -422,11 +442,6 @@ class DcxApiClient
             [
                 'timeout' => self::HTTP_TIMEOUT,
                 'connect_timeout' => self::HTTP_CONNECT_TIMEOUT,
-                'auth' => 
-                    [
-                        $this->credentials['username'], 
-                        $this->credentials['password']
-                    ],
                 'cookies' => $this->cookieJar,
                 'headers' =>
                     [
@@ -435,8 +450,16 @@ class DcxApiClient
                     ]
             ];
 
+        if ((! empty($this->credentials['username'])) && (! empty($this->credentials['password']))) {
+            $defaultOptions['auth'] =
+                [
+                    $this->credentials['username'],
+                    $this->credentials['password']
+                ];
+        }
+
         $defaultOptions['headers'] = array_merge($defaultOptions['headers'], $this->customHttpHeaders);
-        
+
         return array_merge_recursive
         (
             $defaultOptions,
