@@ -405,7 +405,7 @@ class DcxApiClient
      * @param array $responseData
      * @return int HTTP status code
      */
-    protected function request($method, $url, array $options, &$responseData)
+    public function request($method, $url, array $options, &$responseData)
     {
         $responseData = [];
 
@@ -436,7 +436,7 @@ class DcxApiClient
      * @param array $addOptions
      * @return array
      */
-    protected function getRequestOptions(array $addOptions)
+    public function getRequestOptions(array $addOptions)
     {
         $defaultOptions =
             [
@@ -473,7 +473,7 @@ class DcxApiClient
      * @param array $query
      * @return array
      */
-    protected function mergeQuery($url, array $query)
+    public function mergeQuery($url, array $query)
     {
         // Combine URL query parameters and the $query array
         // XXX Hack? We don't try to merge recursively, simply
