@@ -9,6 +9,7 @@ use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Psr7\Uri;
 use GuzzleHttp\Psr7\UriResolver;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\StreamInterface;
 
 
 /**
@@ -93,8 +94,8 @@ class DcxApiClient
     {
         return $this->cookieJar;
     }
-    
-    
+
+
     /**
      * @param CookieJarInterface $cookieJar
      */
@@ -223,6 +224,152 @@ class DcxApiClient
     }
 
 
+    /**
+     * Request object stream
+     * 
+     * @see https://html.spec.whatwg.org/multipage/comms.html#server-sent-events
+     * 
+     * @param string $url
+     * @param array $query
+     * @param callable $eventListener Callback function with a single parameter (associative array of type, id, data)
+     * @return int HTTP status code
+     */
+    public function stream($url, array $query, callable $eventListener)
+    {
+        try {
+            $response = $this->guzzleClient->request
+            (
+                'GET',
+                $this->fullUrl($url),
+                $this->getRequestOptions
+                (
+                    [
+                        'stream' => true, 
+                        'query' => $this->mergeQuery($url, $query),
+                        'headers' =>
+                            [
+                                'Accept' => 'text/event-stream'
+                            ]
+                    ]
+                )
+            );
+        } catch (RequestException $exception) {
+            if ($exception->hasResponse()) {
+                $response = $exception->getResponse();
+            } else {
+                return 500;
+            }
+        }
+
+        if (strpos($response->getHeader('Content-Type')[0], 'text/event-stream') !== false) {
+            $this->handleStreamBody($response->getBody(), $eventListener);
+        } elseif ($this->isJsonResponse($response)) {
+            $responseData = $this->decodeJson($response->getBody());
+            $eventListener(['event' => '', 'id' => '', 'data' => $responseData]);
+        }
+
+        return $response->getStatusCode();
+    }
+
+
+    /**
+     * @param StreamInterface $body
+     * @param callable $eventListener
+     */
+    protected function handleStreamBody(StreamInterface $body, callable $eventListener)
+    {
+        $buffer = '';
+        $event = ['type' => '', 'id' => '', 'data' => ''];
+ 
+        while (! $body->eof()) {
+            // ToDo: What if \r\n crosses our 1024 byte limit? 
+            $buffer .= strtr($body->read(1024), ["\r\n" => "\n", "\r" => "\n"]);
+
+            // Handle all complete lines; the rest goes back into the buffer
+            $lines = explode("\n", $buffer);
+            $buffer = array_pop($lines);
+            
+            foreach ($lines as $line) {
+                $this->handleStreamLine($line, $event, $eventListener);
+            }
+        }
+    }
+
+
+    /**
+     * @param string $line
+     * @param array $event
+     * @param callable $eventListener
+     */
+    protected function handleStreamLine($line, array &$event, callable $eventListener)
+    {
+        // ToDo: Doesn't fully conform to the spec yet, see
+        // https://html.spec.whatwg.org/multipage/comms.html#event-stream-interpretation
+        
+        $this->parseStreamLine($line, $field, $value, $isEmpty);
+        
+        if ($isEmpty) {
+            // Dispatch event on empty line
+            
+            if (trim($event['data']) === '') {
+                $event['data'] = [];
+            } else {
+                $event['data'] = $this->decodeJson($event['data']);
+            }
+            
+            $eventListener($event);
+            
+            $event = ['type' => '', 'id' => '', 'data' => ''];
+        }
+        elseif ($field === 'event') {
+            $event['type'] = trim($value);
+        }
+        elseif ($field === 'id') {
+            $event['id'] = trim($value);
+        }
+        elseif ($field === 'data') {
+            $event['data'] .= $value;
+        }
+    }
+
+
+    /**
+     * @param string $line
+     * @param string $field
+     * @param string $value
+     * @param bool $isEmpty
+     */
+    protected function parseStreamLine($line, &$field, &$value, &$isEmpty)
+    {
+        $field = $value = '';
+        $isEmpty = (trim($line) === '');
+        
+        if ($isEmpty) {
+            return;
+        }
+        
+        // Comment
+        
+        if ($line[0] === ':') {
+            return;
+        }
+        
+        // Field:Value
+        
+        $parts = explode(':', $line, 2);
+        
+        $field = trim($parts[0]);
+        
+        if (isset($parts[1])) {
+            $value = $parts[1];
+            
+            if ($value[0] === ' ') {
+                $value = substr($value, 1);
+            }
+        }
+    }
+    
+    
     /**
      * @param string $url
      * @param array $query
