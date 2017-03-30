@@ -265,7 +265,7 @@ class DcxApiClient
             $this->handleStreamBody($response->getBody(), $eventListener);
         } elseif ($this->isJsonResponse($response)) {
             $responseData = $this->decodeJson($response->getBody());
-            $eventListener(['event' => '', 'id' => '', 'data' => $responseData]);
+            $eventListener(['type' => '', 'id' => '', 'data' => $responseData]);
         }
 
         return $response->getStatusCode();
