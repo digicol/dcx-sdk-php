@@ -489,6 +489,26 @@ class DcxApiClient
 
 
     /**
+     * @param string $uploadrequest_id
+     * @param array $params
+     * @param array $response_body
+     * @return int HTTP status code
+     */
+    public function uploadOnRequest($uploadrequest_id, array $params, &$response_body)
+    {
+        $this->flattenPostfields($params, $flattened);
+
+        return $this->request
+        (
+            'POST',
+            $this->fullUrl('_uploadrequest/' . urlencode($uploadrequest_id)),
+            $this->getRequestOptions(['multipart' => $flattened]),
+            $response_body
+        );
+    }
+
+
+    /**
      * @param string $type Example: "dcx:document"
      * @param string $objectId Example: "doc123"
      * @return string Example: "http://example.com/dcx/api/document/doc123"
