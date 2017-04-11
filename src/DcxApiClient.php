@@ -760,9 +760,9 @@ class DcxApiClient
             if ($key === '_id') {
                 $arr['_id_url'] = $this->resolveCompactUrl($value, $prefixes);
             }
-
-            ksort($arr);
         }
+
+        ksort($arr);
     }
 
 
