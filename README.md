@@ -50,6 +50,8 @@ Here’s an example of retrieving a DC-X collection’s details (name, links to 
 ```
 <?php
  
+require __DIR__ . '/vendor/autoload.php';
+ 
 $dcxApiClient = new \Digicol\DcxSdk\DcxApiClient
 (
     'http://example.com/dcx/api/',
@@ -59,20 +61,18 @@ $dcxApiClient = new \Digicol\DcxSdk\DcxApiClient
  
 $httpStatusCode = $dcxApiClient->get
 (
-    'usertag/utag123',
-    's' =>
-        [
-            'properties' => '*',
-            '_links'     => '*'
-        ],
-    $collectionData
+    'document',
+    [
+        'q' => ['channel' => ['ch050dcxsystempoolnative']],
+        's' => ['fields' => ['_display_title', 'DateCreated']]
+    ],
+    $documentsData
 );
  
-echo "Got collection details:\n";
+echo "Got search results:\n";
 var_dump($httpStatusCode);
-print_r($collectionData);
+print_r($documentsData);
  
-?>
 ```
 
 See the [DC-X JSON API documentation](http://wiki.digicol.de/x/1oTc) for more examples.
