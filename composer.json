@@ -2,7 +2,7 @@
     "name": "digicol/dcx-sdk-php",
     "license": "MIT",
     "type": "library",
-    "description": "The PHP SDK for our DC-X Digital Asset Management system software",
+    "description": "Official PHP SDK for the Digital Collections DC-X Digital Asset Management system",
     "homepage": "https://github.com/digicol/dcx-sdk-php",
     "require": {
         "php": ">=5.5.9",
