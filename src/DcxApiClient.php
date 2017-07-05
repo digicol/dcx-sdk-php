@@ -17,7 +17,9 @@ use Psr\Http\Message\StreamInterface;
  *
  * A PHP client for the DC-X DAM system JSON API.
  * At DC, we’re using this client for automated integration tests,
- * so while it’s far from finished, it’s already working.
+ * so while functionality is still limited, we make sure it’s working.
+ * For further documentation, see our (non-public) Wiki:
+ *  http://wiki.digicol.de/display/dcxdoc/JSON+API 
  *
  * @package Digicol\DcxSdk
  */

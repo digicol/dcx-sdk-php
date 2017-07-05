@@ -1,7 +1,7 @@
 # Official PHP SDK for the Digital Collections DC-X Digital Asset Management system
 
 The `DcxApiClient` class helps your custom PHP code connect to your [DC-X](http://www.digicol.com/products/dc-x/) system
-via the HTTP-based [DC-X JSON API](http://wiki.digicol.de/x/1oTc).
+via the HTTP-based [DC-X JSON API](http://wiki.digicol.de/x/1oTc) (documented in our partner and customer Wiki).
 
 ## Versions
 
@@ -11,19 +11,15 @@ For everyone else, we recommend the latest, [Guzzle](http://guzzlephp.org/)-base
 
 ## Installation in Composer-based projects
 
-If your PHP project uses [Composer](https://getcomposer.org), installation is straightforward. 
-Make sure your project’s `composer.json` file contains:
+If your PHP project uses [Composer](https://getcomposer.org), installation is straightforward.
+
+1) Either run `composer require digicol/dcx-sdk-php`.
+2) Or add this to your project’s `composer.json` file:
 
 ```
-    "repositories": [
-        {
-            "type": "vcs",
-            "url": "https://github.com/digicol/dcx-sdk-php"
-        }
-    ],
     "require":
     {
-        "digicol/dcx-sdk-php": "dev-master"
+        "digicol/dcx-sdk-php": "^2.0"
     },
 ```
 
