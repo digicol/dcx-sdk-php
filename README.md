@@ -5,7 +5,7 @@ via the HTTP-based [DC-X JSON API](http://wiki.digicol.de/x/1oTc) (documented in
 
 ## Versions
 
-If need to use the old `DCX_Api_Client` class, check out the [1.0.0 release](https://github.com/digicol/dcx-sdk-php/releases/tag/1.0.0).
+If you need to use the old `DCX_Api_Client` class, check out the [1.0.0 release](https://github.com/digicol/dcx-sdk-php/releases/tag/1.0.0).
 
 For everyone else, we recommend the latest, [Guzzle](http://guzzlephp.org/)-based version.
 
