@@ -6,7 +6,8 @@
     "homepage": "https://github.com/digicol/dcx-sdk-php",
     "require": {
         "php": ">=5.5.9",
-        "guzzlehttp/guzzle": "~6.0"
+        "guzzlehttp/guzzle": "~6.0",
+        "guzzlehttp/psr7": "^1.4"
     },
     "autoload": {
         "psr-4": {
