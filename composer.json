@@ -8,7 +8,7 @@
         "php": ">=5.5.9",
         "ext-json": "*",
         "ext-curl": "*",
-        "guzzlehttp/guzzle": "~6.0",
+        "guzzlehttp/guzzle": "^7.0",
         "guzzlehttp/psr7": "^1.4"
     },
     "autoload": {
